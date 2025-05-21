@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
-
+from datetime import datetime
 df = pd.read_csv('../data/preprocessed/bbc_encoded.csv')
 ground_truth_labels = df['label_encoded'].values
 
@@ -12,9 +12,16 @@ import os
 file_path = input("Enter the path to the .npy file: ").strip()
 if not os.path.exists(file_path):
     raise FileNotFoundError(f"The file '{file_path}' does not exist.")
+base_name = os.path.splitext(os.path.basename(file_path))[0]
+output_dir = 'output'
+os.makedirs(output_dir, exist_ok=True)
 
 word2vec = np.load(file_path)
 X = torch.tensor(word2vec, dtype=torch.float32)
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+#output_dir = os.path('output')
+#os.makedirs(output_dir, exist_ok=True)
+
 
 def euclidean_distance(x, y):
     return torch.cdist(x, y, p=2)
@@ -97,6 +104,7 @@ print("Labels shape:", labels.shape)
 ari_score = adjusted_rand_score(ground_truth_labels, labels.numpy())
 nmi_score = normalized_mutual_info_score(ground_truth_labels, labels.numpy())
 
+
 print(f"Adjusted Rand Index (ARI): {ari_score:.4f}")
 print(f"Normalized Mutual Information (NMI): {nmi_score:.4f}")
 
@@ -116,12 +124,14 @@ for i in range(k):
         centroids_2d[i] = np.mean(cluster_points, axis=0)
 
 plt.scatter(centroids_2d[:, 0], centroids_2d[:, 1], c='black', s=100, alpha=0.8, marker='X')
+base_name = os.path.splitext(os.path.basename(file_path))[0]
 
-plt.title(f"t-SNE visualization of word2vec embeddings clustered with k-means\nARI={ari_score:.4f}, NMI={nmi_score:.4f}")
+plt.title(f"t-SNE visualization of {base_name} embeddings clustered with k-means\nARI={ari_score:.4f}, NMI={nmi_score:.4f}")
 plt.xlabel("t-SNE Component 1")
 plt.ylabel("t-SNE Component 2")
 plt.tight_layout()
-plt.savefig('kmeans_clustering.png')
+kmeans_plot_path = os.path.join(output_dir, f"{base_name}_kmeans.png")
+plt.savefig(kmeans_plot_path)
 plt.show()
 
 print("\nCluster distributions:")
@@ -149,7 +159,7 @@ plt.scatter(X_2d[:, 0], X_2d[:, 1], c=ground_truth_labels, cmap='tab10', s=15, a
 plt.title("Ground Truth Labels")
 plt.xlabel("t-SNE Component 1")
 plt.ylabel("t-SNE Component 2")
-
+groundtruth_plot_path = os.path.join(output_dir, f"{base_name}_kmeans_groundtruth.png")
 plt.tight_layout()
-plt.savefig('clustering_comparison.png')
+plt.savefig(groundtruth_plot_path)
 plt.show()

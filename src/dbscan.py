@@ -11,6 +11,8 @@ from sklearn.feature_selection import VarianceThreshold
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
+import os 
+from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -22,7 +24,9 @@ class EnhancedDBSCANClustering:
         self.best_score = -1
         self.labels_ = None
 
+
     def load_and_preprocess_data(self, npy_path, csv_path):
+        self.file_stem = os.path.splitext(os.path.basename(npy_path))[0]
         self.X = np.load(npy_path)
         df = pd.read_csv(csv_path)
         self.ground_truth = df['label_encoded'].values
@@ -48,7 +52,13 @@ class EnhancedDBSCANClustering:
             X_variance_filtered = self.X
 
         self.X_scaled = self.scaler.fit_transform(X_variance_filtered)
-
+    def save_figure(self, fig, prefix="plot"):
+        os.makedirs("output", exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{prefix}_{self.file_stem}_{timestamp}.png"
+        save_path = os.path.join("output", filename)
+        fig.savefig(save_path, bbox_inches='tight')
+        print(f"Saved figure to {save_path}")
     def find_optimal_pca_components(self, max_components=100):
         max_possible_components = min(self.X_scaled.shape[1], self.X_scaled.shape[0] - 1, max_components)
         if max_possible_components < 2:
@@ -73,6 +83,9 @@ class EnhancedDBSCANClustering:
         plt.title('PCA: Cumulative Explained Variance')
         plt.legend()
         plt.grid(True)
+        fig = plt.gcf()
+        self.save_figure(fig, prefix="pca_variance")
+        plt.close(fig)
         plt.show()
 
         return optimal_components
@@ -140,6 +153,9 @@ class EnhancedDBSCANClustering:
         plt.title('K-Distance Graph for Eps Estimation')
         plt.legend()
         plt.grid(True)
+        fig = plt.gcf()
+        self.save_figure(fig, prefix="eps_estimation")
+        plt.close(fig)
         plt.show()
         
         suggested_eps = elbow_value
@@ -422,14 +438,15 @@ class EnhancedDBSCANClustering:
         else:
             plt.text(0.5, 0.5, 'All points in single cluster/noise', ha='center', va='center')
             plt.title("Confusion Matrix")
-
         plt.tight_layout()
         plt.show()
+        self.save_figure(fig, prefix="dbscan_results")
+        plt.close(fig)
 
 if __name__ == "__main__":
     clustering = EnhancedDBSCANClustering(random_state=42)
     clustering.load_and_preprocess_data(
-        npy_path="/Users/dariganarmanova/Downloads/bert_embeddings.npy", 
+        npy_path="/Users/dariganarmanova/Downloads/bert_simple.npy", 
         csv_path="/Users/dariganarmanova/cse304-term-project/data/preprocessed/bbc_encoded.csv"
     )
     clustering.apply_dimensionality_reduction(method='pca', n_components=50)
