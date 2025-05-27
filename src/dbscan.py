@@ -23,20 +23,25 @@ class EnhancedDBSCANClustering:
         self.best_params = None
         self.best_score = -1
         self.labels_ = None
-
+        self.valid_indices = None  
 
     def load_and_preprocess_data(self, npy_path, csv_path):
         self.file_stem = os.path.splitext(os.path.basename(npy_path))[0]
         self.X = np.load(npy_path)
         df = pd.read_csv(csv_path)
-        self.ground_truth = df['label_encoded'].values
+        self.ground_truth_original = df['label_encoded'].values
 
-        print(f"Original embedding shape: {self.X.shape}")
-        print(f"Number of unique ground truth labels: {len(np.unique(self.ground_truth))}")
+        if self.X.shape[0] != self.ground_truth_original.shape[0]:
+            min_samples = min(self.X.shape[0], self.ground_truth_original.shape[0])
+            self.X = self.X[:min_samples]
+            self.ground_truth_original = self.ground_truth_original[:min_samples]
 
+        self.valid_indices = np.arange(len(self.X))
         if np.any(np.isnan(self.X)) or np.any(np.isinf(self.X)):
-            print("Warning: Found NaN or infinite values in embeddings. Replacing with zeros.")
-            self.X = np.nan_to_num(self.X)
+            valid_rows = ~(np.isnan(self.X).any(axis=1) | np.isinf(self.X).any(axis=1))            
+            self.X = self.X[valid_rows]
+            self.ground_truth_original = self.ground_truth_original[valid_rows]
+            self.valid_indices = self.valid_indices[valid_rows]
 
         variances = np.var(self.X, axis=0)
         print(f"Min variance: {np.min(variances):.6f}, Max variance: {np.max(variances):.6f}")
@@ -48,21 +53,24 @@ class EnhancedDBSCANClustering:
         print(f"After variance filtering: {X_variance_filtered.shape}")
 
         if X_variance_filtered.shape[1] < 2:
-            print("Warning: Variance filtering removed too many features. Using original data.")
             X_variance_filtered = self.X
 
+        self.ground_truth = self.ground_truth_original.copy()
+        
         self.X_scaled = self.scaler.fit_transform(X_variance_filtered)
+        assert self.X_scaled.shape[0] == self.ground_truth.shape[0], \
+            f"Shape mismatch after preprocessing: X={self.X_scaled.shape[0]}, y={self.ground_truth.shape[0]}"
+
     def save_figure(self, fig, prefix="plot"):
         os.makedirs("output", exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{prefix}_{self.file_stem}_{timestamp}.png"
         save_path = os.path.join("output", filename)
         fig.savefig(save_path, bbox_inches='tight')
-        print(f"Saved figure to {save_path}")
+
     def find_optimal_pca_components(self, max_components=100):
         max_possible_components = min(self.X_scaled.shape[1], self.X_scaled.shape[0] - 1, max_components)
         if max_possible_components < 2:
-            print(f"Warning: Only {max_possible_components} components possible. Using all available.")
             return max_possible_components
 
         pca_test = PCA()
@@ -70,9 +78,6 @@ class EnhancedDBSCANClustering:
         cumsum = np.cumsum(pca_test.explained_variance_ratio_)
         optimal_components = np.argmax(cumsum >= 0.95) + 1
         optimal_components = min(optimal_components, max_possible_components)
-
-        print(f"Optimal PCA components for 95% variance: {optimal_components}")
-
         plt.figure(figsize=(10, 6))
         n_components_to_plot = min(len(cumsum), 100)
         plt.plot(range(1, n_components_to_plot + 1), cumsum[:n_components_to_plot], 'bo-')
@@ -108,10 +113,6 @@ class EnhancedDBSCANClustering:
             print(f"Total explained variance: {np.sum(reducer.explained_variance_ratio_):.3f}")
     
     def estimate_eps(self, k=5):
-        """
-        Estimate an appropriate eps value using the k-distance graph
-        """
-        print(f"Estimating optimal eps value using {k}-nearest neighbors...")
         nbrs = NearestNeighbors(n_neighbors=k).fit(self.X_reduced)
         distances, indices = nbrs.kneighbors(self.X_reduced)
         
@@ -167,22 +168,15 @@ class EnhancedDBSCANClustering:
             suggested_eps * 1.5
         ]
         
-        print(f"Suggested eps values: {[round(e, 3) for e in eps_values]}")
         return eps_values
     
     def grid_search_dbscan(self, eps_values=None, min_samples_values=None):
-        """
-        Perform grid search to find optimal DBSCAN parameters
-        """
         if eps_values is None:
             eps_values = self.estimate_eps()
         
         if min_samples_values is None:
             dims = self.X_reduced.shape[1]
             min_samples_values = [max(5, 2*dims), max(10, 3*dims), max(15, 4*dims)]
-        
-        print(f"Running grid search for DBSCAN with {len(eps_values)} eps values and {len(min_samples_values)} min_samples values...")
-        
         param_grid = ParameterGrid({
             'eps': eps_values,
             'min_samples': min_samples_values
@@ -204,6 +198,10 @@ class EnhancedDBSCANClustering:
             dbscan = DBSCAN(eps=params['eps'], min_samples=params['min_samples'])
             labels = dbscan.fit_predict(self.X_reduced)
             end_time = time.time()
+            
+            if len(labels) != len(self.ground_truth):
+                print(f"  → ERROR: Label shape mismatch! labels={len(labels)}, ground_truth={len(self.ground_truth)}")
+                continue
             
             n_clusters = len(np.unique(labels)) - (1 if -1 in labels else 0)
             noise_ratio = np.sum(labels == -1) / len(labels)
@@ -233,11 +231,11 @@ class EnhancedDBSCANClustering:
                     silhouette = -1
             else:
                 silhouette = -1
-            
-            if hasattr(self, 'ground_truth'):
+            try:
                 ari = adjusted_rand_score(self.ground_truth, labels)
                 nmi = normalized_mutual_info_score(self.ground_truth, labels)
-            else:
+            except Exception as e:
+                print(f"  → Error calculating supervised metrics: {e}")
                 ari = -1
                 nmi = -1
             
@@ -257,7 +255,7 @@ class EnhancedDBSCANClustering:
             
             score = silhouette if silhouette > 0 else (ari + nmi) / 2
             
-            if n_clusters > len(np.unique(self.ground_truth)) * 2:
+            if hasattr(self, 'ground_truth') and n_clusters > len(np.unique(self.ground_truth)) * 2:
                 score -= 0.1
             if noise_ratio > 0.5:
                 score -= 0.1
@@ -271,7 +269,7 @@ class EnhancedDBSCANClustering:
         
         results_df = pd.DataFrame(results)
         
-        if not results_df.empty:
+        if not results_df.empty and len(results_df) > 1:
             plt.figure(figsize=(15, 10))
             
             plt.subplot(2, 2, 1)
@@ -303,6 +301,8 @@ class EnhancedDBSCANClustering:
             plt.title('Adjusted Rand Index')
             
             plt.tight_layout()
+            fig = plt.gcf()
+            self.save_figure(fig, prefix="grid_search_heatmap")
             plt.show()
         
         if best_params is not None:
@@ -321,9 +321,6 @@ class EnhancedDBSCANClustering:
         return results_df
 
     def fit_best_dbscan(self, eps=None, min_samples=None):
-        """
-        Fit DBSCAN with the best parameters or provided parameters
-        """
         if eps is not None and min_samples is not None:
             params = {'eps': eps, 'min_samples': min_samples}
             print(f"Using provided parameters: eps={eps:.3f}, min_samples={min_samples}")
@@ -346,10 +343,13 @@ class EnhancedDBSCANClustering:
         print(f"DBSCAN clustering completed: {n_clusters} clusters found, {noise_ratio:.2%} noise points")
         
         if hasattr(self, 'ground_truth'):
-            ari = adjusted_rand_score(self.ground_truth, self.labels_)
-            nmi = normalized_mutual_info_score(self.ground_truth, self.labels_)
-            print(f"Adjusted Rand Index: {ari:.3f}")
-            print(f"Normalized Mutual Information: {nmi:.3f}")
+            try:
+                ari = adjusted_rand_score(self.ground_truth, self.labels_)
+                nmi = normalized_mutual_info_score(self.ground_truth, self.labels_)
+                print(f"Adjusted Rand Index: {ari:.3f}")
+                print(f"Normalized Mutual Information: {nmi:.3f}")
+            except Exception as e:
+                print(f"Error calculating supervised metrics: {e}")
         
         non_noise_mask = self.labels_ != -1
         if np.sum(non_noise_mask) > 1 and n_clusters > 1:
@@ -373,75 +373,142 @@ class EnhancedDBSCANClustering:
         print(f"Running t-SNE for visualization with perplexity={perplexity}...")
         try:
             tsne = TSNE(n_components=2, random_state=self.random_state, 
-                       perplexity=perplexity, metric='euclidean', learning_rate='auto')
+                   perplexity=perplexity, metric='euclidean', learning_rate='auto')
             X_2d = tsne.fit_transform(self.X_reduced)
         except Exception as e:
             print(f"t-SNE failed: {e}")
             print("Using PCA for 2D visualization instead...")
             pca_2d = PCA(n_components=2, random_state=self.random_state)
             X_2d = pca_2d.fit_transform(self.X_reduced)
-
-        fig = plt.figure(figsize=(20, 12))
-
-        ax1 = plt.subplot(2, 3, 1)
-        scatter1 = plt.scatter(X_2d[:, 0], X_2d[:, 1], c=self.labels_, cmap='tab20', s=15, alpha=0.7)
-        plt.title(f"DBSCAN Results\n(eps={self.best_params['eps']:.3f}, min_samples={self.best_params['min_samples']})")
-        plt.xlabel("Component 1")
-        plt.ylabel("Component 2")
-        plt.colorbar(scatter1, label="Cluster")
-
-        ax2 = plt.subplot(2, 3, 2)
-        scatter2 = plt.scatter(X_2d[:, 0], X_2d[:, 1], c=self.ground_truth, cmap='tab20', s=15, alpha=0.7)
-        plt.title("Ground Truth Labels")
-        plt.xlabel("Component 1")
-        plt.ylabel("Component 2")
-        plt.colorbar(scatter2, label="True Label")
-
-        ax3 = plt.subplot(2, 3, 3)
-        noise_mask = self.labels_ == -1
-        plt.scatter(X_2d[~noise_mask, 0], X_2d[~noise_mask, 1], c='lightblue', s=15, alpha=0.5, label='Clustered')
-        plt.scatter(X_2d[noise_mask, 0], X_2d[noise_mask, 1], c='red', s=15, alpha=0.8, label='Noise')
-        plt.title(f"Noise Points ({np.sum(noise_mask)} points)")
-        plt.xlabel("Component 1")
-        plt.ylabel("Component 2")
-        plt.legend()
-
-        ax4 = plt.subplot(2, 3, 4)
-        unique_labels, counts = np.unique(self.labels_, return_counts=True)
-        cluster_sizes = counts[unique_labels != -1]
-        cluster_labels = unique_labels[unique_labels != -1]
-
-        if len(cluster_sizes) > 0:
-            plt.bar(range(len(cluster_sizes)), cluster_sizes)
-            plt.xlabel("Cluster ID")
-            plt.ylabel("Number of Points")
-            plt.title("Cluster Sizes")
-            plt.xticks(range(len(cluster_sizes)), cluster_labels)
-        else:
-            plt.text(0.5, 0.5, 'No clusters found', ha='center', va='center')
-            plt.title("Cluster Sizes")
-
-        ax5 = plt.subplot(2, 3, 5)
-        if len(np.unique(self.labels_)) > 1:
+    
+        unique_clusters = np.unique(self.labels_)
+        n_clusters = len(unique_clusters) - (1 if -1 in unique_clusters else 0)
+    
+        if hasattr(self, 'ground_truth'):
             try:
-                labels_for_cm = self.labels_.copy()
-                labels_for_cm[labels_for_cm == -1] = max(self.ground_truth) + 1
-
-                cm = confusion_matrix(self.ground_truth, labels_for_cm)
-                sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-                plt.xlabel("Predicted Labels")
-                plt.ylabel("True Labels")
-                plt.title("Confusion Matrix")
-            except Exception as e:
-                plt.text(0.5, 0.5, f'Could not create confusion matrix: {e}', ha='center', va='center')
-                plt.title("Confusion Matrix")
+                ari_score = adjusted_rand_score(self.ground_truth, self.labels_)
+                nmi_score = normalized_mutual_info_score(self.ground_truth, self.labels_)
+            except:
+                ari_score = 0
+                nmi_score = 0
         else:
-            plt.text(0.5, 0.5, 'All points in single cluster/noise', ha='center', va='center')
-            plt.title("Confusion Matrix")
+            ari_score = 0
+            nmi_score = 0
+    
+        base_name = self.file_stem
+    
+        plt.figure(figsize=(12, 10))
+        scatter = plt.scatter(X_2d[:, 0], X_2d[:, 1], c=self.labels_, cmap='tab10', s=15, alpha=0.8)
+        plt.colorbar(scatter, label="Cluster")
+    
+        if n_clusters > 0:
+            centroids_2d = np.zeros((n_clusters, 2))
+            cluster_idx = 0
+            for i in unique_clusters:
+                if i != -1:  
+                    cluster_points = X_2d[self.labels_ == i]
+                    if len(cluster_points) > 0:
+                        centroids_2d[cluster_idx] = np.mean(cluster_points, axis=0)
+                        cluster_idx += 1
+        
+            if cluster_idx > 0:  
+                plt.scatter(centroids_2d[:cluster_idx, 0], centroids_2d[:cluster_idx, 1], 
+                           c='black', s=100, alpha=0.8, marker='X')
+    
+        if -1 in unique_clusters:
+            noise_points = X_2d[self.labels_ == -1]
+            if len(noise_points) > 0:
+                plt.scatter(noise_points[:, 0], noise_points[:, 1], c='red', s=15, alpha=0.5, 
+                       marker='x', label='Noise')
+                plt.legend()
+    
+        plt.title(f"t-SNE visualization of {base_name} embeddings clustered with DBSCAN\n" 
+              f"eps={self.best_params['eps']:.3f}, min_samples={self.best_params['min_samples']}, "
+              f"ARI={ari_score:.4f}, NMI={nmi_score:.4f}")
+        plt.xlabel("t-SNE Component 1")
+        plt.ylabel("t-SNE Component 2")
         plt.tight_layout()
+    
+        os.makedirs("output", exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dbscan_plot_path = os.path.join("output", f"{base_name}_dbscan_{timestamp}.png")
+        plt.savefig(dbscan_plot_path)
         plt.show()
-        self.save_figure(fig, prefix="dbscan_results")
-        plt.close(fig)
+        print(f"Saved plot to {dbscan_plot_path}")
+    
+        if hasattr(self, 'ground_truth'):
+            plt.figure(figsize=(16, 6))
+        
+            plt.subplot(1, 2, 1)
+            plt.scatter(X_2d[:, 0], X_2d[:, 1], c=self.labels_, cmap='tab10', s=15, alpha=0.8)
+            if -1 in unique_clusters:
+                noise_points = X_2d[self.labels_ == -1]
+                if len(noise_points) > 0:
+                    plt.scatter(noise_points[:, 0], noise_points[:, 1], c='red', s=15, alpha=0.5, 
+                           marker='x', label='Noise')
+                    plt.legend()
+                
+            plt.title(f"DBSCAN Clustering\neps={self.best_params['eps']:.3f}, "
+                  f"min_samples={self.best_params['min_samples']}, ARI={ari_score:.4f}")
+            plt.xlabel("t-SNE Component 1")
+            plt.ylabel("t-SNE Component 2")
+        
+            plt.subplot(1, 2, 2)
+            plt.scatter(X_2d[:, 0], X_2d[:, 1], c=self.ground_truth, cmap='tab10', s=15, alpha=0.8)
+            plt.title("Ground Truth Labels")
+            plt.xlabel("t-SNE Component 1")
+            plt.ylabel("t-SNE Component 2")
+        
+            plt.tight_layout()
+            comparison_plot_path = os.path.join("output", f"{base_name}_dbscan_groundtruth_{timestamp}.png")
+            plt.savefig(comparison_plot_path)
+            plt.show()
+            print(f"Saved comparison plot to {comparison_plot_path}")
+    
+        print("\nCluster distributions:")
+        for i in unique_clusters:
+            count = np.sum(self.labels_ == i)
+            percentage = count / len(self.labels_) * 100
+            if i == -1:
+                print(f"Noise points: {count} samples ({percentage:.1f}%)")
+            else:
+                print(f"Cluster {i}: {count} samples ({percentage:.1f}%)")
+    
+        if hasattr(self, 'ground_truth'):
+            print("\nGround truth label distribution:")
+            unique_labels, counts = np.unique(self.ground_truth, return_counts=True)
+            for label, count in zip(unique_labels, counts):
+                percentage = count / len(self.ground_truth) * 100
+                print(f"Label {label}: {count} samples ({percentage:.1f}%)")
+
+    def get_cluster_summary(self):
+        """
+        Get a summary of the clustering results
+        """
+        if self.labels_ is None:
+            return "No clustering results available"
+        
+        unique_clusters = np.unique(self.labels_)
+        n_clusters = len(unique_clusters) - (1 if -1 in unique_clusters else 0)
+        noise_ratio = np.sum(self.labels_ == -1) / len(self.labels_)
+        
+        summary = {
+            'n_clusters': n_clusters,
+            'noise_points': np.sum(self.labels_ == -1),
+            'noise_ratio': noise_ratio,
+            'total_points': len(self.labels_),
+            'best_params': self.best_params
+        }
+        
+        if hasattr(self, 'ground_truth'):
+            try:
+                summary['ari'] = adjusted_rand_score(self.ground_truth, self.labels_)
+                summary['nmi'] = normalized_mutual_info_score(self.ground_truth, self.labels_)
+            except:
+                summary['ari'] = None
+                summary['nmi'] = None
+        
+        return summary
 
 if __name__ == "__main__":
     clustering = EnhancedDBSCANClustering(random_state=42)
