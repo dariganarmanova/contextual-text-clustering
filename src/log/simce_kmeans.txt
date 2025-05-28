@@ -1,0 +1,42 @@
+Enter the path to the .npy file: /Users/dariganarmanova/Downloads/simcse_embeddings.npy     
+Running KMeans 5 times to find the best clustering...
+Run 1/5...
+  Inertia: 246110.5938
+  New best run!
+Run 2/5...
+Converged in 28 iterations
+  Inertia: 245551.0156
+  New best run!
+Run 3/5...
+Converged in 17 iterations
+  Inertia: 246033.0781
+Run 4/5...
+Converged in 27 iterations
+  Inertia: 245688.3906
+Run 5/5...
+Converged in 33 iterations
+  Inertia: 245538.0312
+  New best run!
+
+Best run had inertia: 245538.0312
+Centroids shape: torch.Size([5, 768])
+Labels shape: torch.Size([2127])
+Adjusted Rand Index (ARI): 0.2260
+Normalized Mutual Information (NMI): 0.2823
+Running t-SNE...
+2025-05-28 00:40:03.148 python[9770:206251] +[IMKClient subclass]: chose IMKClient_Modern
+2025-05-28 00:40:03.148 python[9770:206251] +[IMKInputSession subclass]: chose IMKInputSession_Modern
+
+Cluster distributions:
+Cluster 0: 348 samples (16.4%)
+Cluster 1: 457 samples (21.5%)
+Cluster 2: 530 samples (24.9%)
+Cluster 3: 373 samples (17.5%)
+Cluster 4: 419 samples (19.7%)
+
+Ground truth label distribution:
+Label 0: 503 samples (23.6%)
+Label 1: 369 samples (17.3%)
+Label 2: 403 samples (18.9%)
+Label 3: 505 samples (23.7%)
+Label 4: 347 samples (16.3%)

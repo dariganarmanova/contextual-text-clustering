@@ -1,0 +1,42 @@
+Enter the path to the .npy file: /Users/dariganarmanova/Downloads/sbert_embeddings.npy
+Running KMeans 5 times to find the best clustering...
+Run 1/5...
+Converged in 8 iterations
+  Inertia: 1618.8083
+  New best run!
+Run 2/5...
+Converged in 15 iterations
+  Inertia: 1618.7952
+  New best run!
+Run 3/5...
+Converged in 8 iterations
+  Inertia: 1618.8022
+Run 4/5...
+Converged in 8 iterations
+  Inertia: 1642.5511
+Run 5/5...
+Converged in 12 iterations
+  Inertia: 1638.3816
+
+Best run had inertia: 1618.7952
+Centroids shape: torch.Size([5, 384])
+Labels shape: torch.Size([2127])
+Adjusted Rand Index (ARI): 0.9025
+Normalized Mutual Information (NMI): 0.8721
+Running t-SNE...
+2025-05-27 23:18:12.432 python[8621:148685] +[IMKClient subclass]: chose IMKClient_Modern
+2025-05-27 23:18:12.432 python[8621:148685] +[IMKInputSession subclass]: chose IMKInputSession_Modern
+
+Cluster distributions:
+Cluster 0: 400 samples (18.8%)
+Cluster 1: 361 samples (17.0%)
+Cluster 2: 485 samples (22.8%)
+Cluster 3: 508 samples (23.9%)
+Cluster 4: 373 samples (17.5%)
+
+Ground truth label distribution:
+Label 0: 503 samples (23.6%)
+Label 1: 369 samples (17.3%)
+Label 2: 403 samples (18.9%)
+Label 3: 505 samples (23.7%)
+Label 4: 347 samples (16.3%)

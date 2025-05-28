@@ -1,0 +1,42 @@
+Enter the path to the .npy file: /Users/dariganarmanova/Downloads/tfidf_embeddings.npy
+Running KMeans 5 times to find the best clustering...
+Run 1/5...
+Converged in 14 iterations
+  Inertia: 1742.5930
+  New best run!
+Run 2/5...
+Converged in 9 iterations
+  Inertia: 1751.8451
+Run 3/5...
+Converged in 19 iterations
+  Inertia: 1752.5756
+Run 4/5...
+Converged in 54 iterations
+  Inertia: 1738.9756
+  New best run!
+Run 5/5...
+Converged in 13 iterations
+  Inertia: 1758.4512
+
+Best run had inertia: 1738.9756
+Centroids shape: torch.Size([5, 5000])
+Labels shape: torch.Size([2127])
+Adjusted Rand Index (ARI): 0.6111
+Normalized Mutual Information (NMI): 0.6862
+Running t-SNE...
+2025-05-27 22:48:42.963 python[8055:124334] +[IMKClient subclass]: chose IMKClient_Modern
+2025-05-27 22:48:42.963 python[8055:124334] +[IMKInputSession subclass]: chose IMKInputSession_Modern
+
+Cluster distributions:
+Cluster 0: 307 samples (14.4%)
+Cluster 1: 340 samples (16.0%)
+Cluster 2: 181 samples (8.5%)
+Cluster 3: 479 samples (22.5%)
+Cluster 4: 820 samples (38.6%)
+
+Ground truth label distribution:
+Label 0: 503 samples (23.6%)
+Label 1: 369 samples (17.3%)
+Label 2: 403 samples (18.9%)
+Label 3: 505 samples (23.7%)
+Label 4: 347 samples (16.3%)

@@ -1,0 +1,41 @@
+Enter the path to the .npy file: /Users/dariganarmanova/Downloads/bert_finetuned_supervised.npy
+Running KMeans 5 times to find the best clustering...
+Run 1/5...
+Converged in 2 iterations
+  Inertia: 8260.4639
+  New best run!
+Run 2/5...
+Converged in 2 iterations
+  Inertia: 8260.4639
+Run 3/5...
+Converged in 2 iterations
+  Inertia: 8260.4639
+Run 4/5...
+Converged in 2 iterations
+  Inertia: 8260.4639
+Run 5/5...
+Converged in 3 iterations
+  Inertia: 8260.4639
+
+Best run had inertia: 8260.4639
+Centroids shape: torch.Size([5, 768])
+Labels shape: torch.Size([2127])
+Adjusted Rand Index (ARI): 0.9829
+Normalized Mutual Information (NMI): 0.9738
+Running t-SNE...
+2025-05-27 23:26:16.921 python[8854:156734] +[IMKClient subclass]: chose IMKClient_Modern
+2025-05-27 23:26:16.921 python[8854:156734] +[IMKInputSession subclass]: chose IMKInputSession_Modern
+
+Cluster distributions:
+Cluster 0: 349 samples (16.4%)
+Cluster 1: 493 samples (23.2%)
+Cluster 2: 505 samples (23.7%)
+Cluster 3: 406 samples (19.1%)
+Cluster 4: 374 samples (17.6%)
+
+Ground truth label distribution:
+Label 0: 503 samples (23.6%)
+Label 1: 369 samples (17.3%)
+Label 2: 403 samples (18.9%)
+Label 3: 505 samples (23.7%)
+Label 4: 347 samples (16.3%)

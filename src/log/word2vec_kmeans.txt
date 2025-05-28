@@ -1,0 +1,43 @@
+Enter the path to the .npy file: /Users/dariganarmanova/Downloads/word2vec.npy
+Running KMeans 5 times to find the best clustering...
+Run 1/5...
+Converged in 13 iterations
+  Inertia: 3040.3992
+  New best run!
+Run 2/5...
+Converged in 19 iterations
+  Inertia: 3040.3987
+  New best run!
+Run 3/5...
+Converged in 13 iterations
+  Inertia: 3138.7168
+Run 4/5...
+Converged in 22 iterations
+  Inertia: 3040.4175
+Run 5/5...
+Converged in 18 iterations
+  Inertia: 3040.3887
+  New best run!
+
+Best run had inertia: 3040.3887
+Centroids shape: torch.Size([5, 300])
+Labels shape: torch.Size([2127])
+Adjusted Rand Index (ARI): 0.7678
+Normalized Mutual Information (NMI): 0.7699
+Running t-SNE...
+2025-05-27 22:53:09.213 python[8168:129276] +[IMKClient subclass]: chose IMKClient_Modern
+2025-05-27 22:53:09.213 python[8168:129276] +[IMKInputSession subclass]: chose IMKInputSession_Modern
+
+Cluster distributions:
+Cluster 0: 349 samples (16.4%)
+Cluster 1: 466 samples (21.9%)
+Cluster 2: 551 samples (25.9%)
+Cluster 3: 422 samples (19.8%)
+Cluster 4: 339 samples (15.9%)
+
+Ground truth label distribution:
+Label 0: 503 samples (23.6%)
+Label 1: 369 samples (17.3%)
+Label 2: 403 samples (18.9%)
+Label 3: 505 samples (23.7%)
+Label 4: 347 samples (16.3%)
